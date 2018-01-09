@@ -1,5 +1,5 @@
-#if defined(ARDUINO) 
-  SYSTEM_MODE(MANUAL); 
+#if defined(ARDUINO)
+  SYSTEM_MODE(MANUAL);
 #endif
 
 // This #include statement was automatically added by the Particle IDE.
@@ -20,7 +20,7 @@
 #include "BH1750.h"
 
 // DHT22 (humidity/temp)
-#include "PietteTech_DHT.h"  
+#include "PietteTech_DHT.h"
 
 // e-Ink display
 #include <GxEPD.h>
@@ -28,6 +28,7 @@
 #include GxEPD_BitmapExamples
 #include <GxIO/GxIO_SPI/GxIO_SPI.cpp>
 #include <GxIO/GxIO.cpp>
+#include "unicorn_helmet_ink.h"
 
 // HC-SR04 (ultasonic)
 #include "hc_sr04.h"
@@ -35,7 +36,7 @@
 #define DHTTYPE  DHT22             // Sensor type DHT11/21/22/AM2301/AM2302
 #define DHTPIN   D15               // Digital pin for DHT22
 #define PIN_MQ135 A6               // Anlog pin for GAS sensor
-#define PIN_TRCT A0                // Anlog pin for IR sensor 
+#define PIN_TRCT A0                // Anlog pin for IR sensor
 #define HAS_RED_COLOR
 #define IR_PROBE_DELAY 5
 //declarations
@@ -75,10 +76,10 @@ void setup(){
     Serial.begin(115200);
     Wire.begin();
     display.init();
-    
-    //rtc.begin(&UDPClient, "north-america.pool.ntp.org");
-    //rtc.setTimeZone(1); // gmt offset
-    
+
+    rtc.begin(&UDPClient, "north-america.pool.ntp.org");
+    rtc.setTimeZone(1); // gmt offset
+
     if (bmp.initialize()) {
         Particle.publish("DEBUG", "BMP280 sensor found...");
         bmp_online = true;
@@ -100,26 +101,20 @@ void setup(){
         Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");
         dht_online = true;
     }
-        
+
     //timer.start();
     Particle.publish("DEBUG", "started!");
-    //if (Particle.connected()) {
-    //    Particle.process();
-    //    Particle.disconnect();
-    //}
-  
-    //pinMode(led2, OUTPUT);
-    pinMode(PIN_TRCT,INPUT);
+    pinMode(PIN_TRCT, INPUT);
 }
 
 void loop(){
-      
+
     delay(30000);
     connectWiFi();
     //int ad_value;
     //ad_value = analogRead(A0);
     //Particle.publish("ad_value", String(ad_value));
-      
+
     //float temp = 22.0;
     //String results = ultrasonic.get_n_readings_pct(temp, 10);
     //Serial.println(results);
@@ -127,18 +122,18 @@ void loop(){
     //display.setTextColor(GxEPD_BLACK);
     //display.setCursor(0, 0);
     //display.println(results);
-    //display.update(); 
+    //display.update();
     //Particle.publish("results", results);
     //Serial.println();
     checkEnvironment();
     WiFi.off();
-  
+
 
 }
 
 void connectWiFi() {
     String known[3][2] = {
-      { "LittleDragon", "00000000"}, 
+      { "LittleDragon", "00000000"},
       { "DARKOPL_2", "00000000" },
       { "SMOKI_SOKOLEC", "00000000" }
     };
@@ -153,13 +148,13 @@ void connectWiFi() {
                       Serial.println("MATCH!");
                       WiFi.setCredentials(known[j][0].c_str(),known[j][1].c_str());
                       WiFi.connect();
-                      
+
                       while ( WiFi.connecting()) {
                         // print dots while we wait to connect
                         Serial.print(".");
                         delay(300);
                       }
-  
+
                       Serial.println("\nYou're connected to the network");
                       Serial.println("Waiting for an ip address");
                       break;
@@ -363,17 +358,6 @@ int get_snow(int n) {
     return successes ? (successes / n * 100) : successes;
 }
 
-    // icons   
-#include <imglib/icons_sun.h>
-#include <imglib/icons_cloud.h>   
-#include <imglib/icons_cloud_sun.h>
-#include <imglib/icons_rain_1.h>
-#include <imglib/icons_rain_2.h>
-#include <imglib/icons_rain_3.h>
-#include <imglib/icons_snow_1.h>
-#include <imglib/icons_snow_2.h>
-#include <imglib/icons_snow_3.h>
-
 const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
     if ((snow_intensity > 0) && (snow_intensity <= 15)) {
         return icons_snow_1;
@@ -395,16 +379,16 @@ const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
 
 
 void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16_t& light, unsigned int& rain, unsigned int& snow) {
-    /************************************************************************************  
-       BUSY->D3(MISO), 
-       RST->D7, 
-       DC->D6, 
-       CS->D5(SS), 
-       CLK->D4(SCK), 
-       DIN->D2(MOSI), 
-       GND->GNG, 
+    /************************************************************************************
+       BUSY->D3(MISO),
+       RST->D7,
+       DC->D6,
+       CS->D5(SS),
+       CLK->D4(SCK),
+       DIN->D2(MOSI),
+       GND->GNG,
        3.3V->3.3V
-       
+
        BLUE -> D2
        VIOLET -> D3
        YELLOW -> D4
@@ -413,14 +397,11 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
        WHITE -> D7
        BLACK -> GND
        RED -> 3.3V
-    */  
-    
+    */
+
     //display.drawPicture(BitmapWaveshare_black, BitmapWaveshare_red, sizeof(BitmapWaveshare_black), sizeof(BitmapWaveshare_red), GxEPD::bm_normal);
     //delay(5000);
-    // fonts
-    #include <Fonts/DejaVu_Sans_Mono_8.h> 
-    #include <Fonts/DejaVu_Sans_Mono_12.h>
-    #include <Fonts/Nimbus_Sans_L_Bold_Condensed_16.h>
+
 
 
 
@@ -430,7 +411,7 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
     const GFXfont* f8 = &DejaVu_Sans_Mono_8;
     const GFXfont* f12 = &DejaVu_Sans_Mono_12;
     const GFXfont* f16 = &Nimbus_Sans_L_Bold_Condensed_16;
-    
+
     display.setRotation(3);
     display.fillRect(0, 0, 200, 200, GxEPD_WHITE);
     // First row (status | date)
@@ -472,7 +453,7 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
     display.drawRect(99, 80, 100, 59, GxEPD_BLACK);
     display.drawBitmap(icons_sun, 24, 85, 50, 50, GxEPD_WHITE);
     display.drawBitmap(cloud_icon, 124, 85, 50, 50, GxEPD_WHITE);
-    
+
     // 5th row (CO2 / DEW POINT)
     display.fillRect(0, 140, 200, 24, GxEPD_RED);
     display.drawRect(0, 140, 100, 60, GxEPD_BLACK);
@@ -491,6 +472,6 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
     display.setCursor(135, 187);
     display.print(light);
     display.print(" LUX");
-    
-    display.update(); 
+
+    display.update();
 }

@@ -1,0 +1,34 @@
+########
+# Python
+########
+*.py[co]
+
+#######
+# Emacs
+#######
+*.*~
+
+######
+# OS X
+######
+*.DS_Store
+
+#########
+# PyCharm
+#########
+.idea/
+
+#####
+# Vim
+#####
+*.swp
+
+#########
+# Eclipse?
+#########
+.project
+
+# guard
+Gemfile.lock
+node_modules
+npm-debug.log

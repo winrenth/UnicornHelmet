@@ -6,7 +6,7 @@
 #include "PietteTech_DHT.h"
 
 // NTP time
-//#include <SparkTime.h>
+#include <SparkTime.h>
 
 // MQ-135 (GAS)
 #include "mq135.h"
@@ -23,22 +23,23 @@
 #include "PietteTech_DHT.h"
 
 // e-Ink display
-#include <GxEPD.h>
-#include <GxGDEW0154Z04/GxGDEW0154Z04.cpp>
+//#include <GxEPD.h>
+#include <GxGDEW0154Z04/GxGDEW0154Z04.h>
 #include GxEPD_BitmapExamples
-#include <GxIO/GxIO_SPI/GxIO_SPI.cpp>
-#include <GxIO/GxIO.cpp>
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
+//#include <GxIO/GxIO.cpp>
 #include "unicorn_helmet_ink.h"
 
 // HC-SR04 (ultasonic)
 #include "hc_sr04.h"
 
-#define DHTTYPE  DHT22             // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN   D15               // Digital pin for DHT22
-#define PIN_MQ135 A6               // Anlog pin for GAS sensor
-#define PIN_TRCT A0                // Anlog pin for IR sensor
+#define DHTTYPE DHT22             // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTPIN D15                // Digital pin for DHT22
+#define PIN_MQ135 A6              // Anlog pin for GAS sensor
+#define PIN_TRCT A0               // Anlog pin for IR sensor
 #define HAS_RED_COLOR
 #define IR_PROBE_DELAY 5
+
 //declarations
 void checkEnvironment();
 int get_snow(int n = 40);
@@ -51,7 +52,7 @@ static const uint8_t RST   = D7;
 BMP280 bmp;
 MQ135 mq = MQ135(PIN_MQ135);
 UDP UDPClient;
-//SparkTime rtc;
+SparkTime rtc;
 BH1750 bh;
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 // GxIO_SPI(SPIClass& spi, int8_t cs, int8_t dc, int8_t rst = -1, int8_t b
@@ -59,6 +60,19 @@ GxIO_Class io(SPI1, D5, DC);
 GxEPD_Class display(io, RST, D3);
 Ultrasonic ultrasonic(A1, 12);
 
+typedef struct {
+  float temperature;
+  float humidity;
+  int light;
+  float co2;
+  float pressure;
+  float altitude;
+  short snow_intensity;
+  short rain_intensity;
+  unsigned long timestamp;
+} SingleResult;
+
+SingleResult current;
 int led2 = D7;
 bool bmp_online = false;
 bool mq_online = false;
@@ -68,6 +82,7 @@ bool ink_online = false;
 unsigned long currentTime;
 unsigned long lastTime = 0UL;
 bool bDHTstarted;
+
 
 //Timer timer(30000, checkEnvironment);
 
@@ -108,8 +123,7 @@ void setup(){
 }
 
 void loop(){
-
-    delay(30000);
+    delay(15000);
     connectWiFi();
     //int ad_value;
     //ad_value = analogRead(A0);
@@ -127,15 +141,13 @@ void loop(){
     //Serial.println();
     checkEnvironment();
     WiFi.off();
-
-
 }
 
 void connectWiFi() {
     String known[3][2] = {
-      { "LittleDragon", "00000000"},
-      { "DARKOPL_2", "00000000" },
-      { "SMOKI_SOKOLEC", "00000000" }
+        { "LittleDragon", "00000000"},
+        { "DARKOPL_2", "00000000" },
+        { "SMOKI_SOKOLEC", "00000000" }
     };
     WiFi.on();
     WiFiAccessPoint aps[20];
@@ -344,6 +356,9 @@ void get_humidity(float& temperature, float& humidity, float& dew, bool& perform
         temperature = DHT.getCelsius();
         dew = DHT.getDewPoint();
         bDHTstarted = false;
+    } else {
+        // get previous
+
     }
 }
 
@@ -379,32 +394,6 @@ const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
 
 
 void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16_t& light, unsigned int& rain, unsigned int& snow) {
-    /************************************************************************************
-       BUSY->D3(MISO),
-       RST->D7,
-       DC->D6,
-       CS->D5(SS),
-       CLK->D4(SCK),
-       DIN->D2(MOSI),
-       GND->GNG,
-       3.3V->3.3V
-
-       BLUE -> D2
-       VIOLET -> D3
-       YELLOW -> D4
-       ORANGE -> D5
-       GREEN -> D6
-       WHITE -> D7
-       BLACK -> GND
-       RED -> 3.3V
-    */
-
-    //display.drawPicture(BitmapWaveshare_black, BitmapWaveshare_red, sizeof(BitmapWaveshare_black), sizeof(BitmapWaveshare_red), GxEPD::bm_normal);
-    //delay(5000);
-
-
-
-
     const unsigned char *cloud_icon = get_cloud_icon(rain, snow);
     //const unsigned char *sun_icon = get_sun_icon(light);
 

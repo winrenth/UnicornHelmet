@@ -2,8 +2,8 @@
   SYSTEM_MODE(MANUAL);
 #endif
 
-// This #include statement was automatically added by the Particle IDE.
-#include "PietteTech_DHT.h"
+// EEPROM management
+#include "eeprom.h"
 
 // NTP time
 #include <SparkTime.h>
@@ -23,11 +23,6 @@
 #include "PietteTech_DHT.h"
 
 // e-Ink display
-//#include <GxEPD.h>
-#include <GxGDEW0154Z04/GxGDEW0154Z04.h>
-#include GxEPD_BitmapExamples
-#include <GxIO/GxIO_SPI/GxIO_SPI.h>
-//#include <GxIO/GxIO.cpp>
 #include "unicorn_helmet_ink.h"
 
 // HC-SR04 (ultasonic)
@@ -43,7 +38,11 @@
 //declarations
 void checkEnvironment();
 int get_snow(int n = 40);
-
+void connectWiFi();
+void get_pressure(SingleResult& result);
+bool get_dht_status();
+void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed);
+void updateInk(SingleResult& result);
 void dht_wrapper(); // must be declared before the lib initialization
 
 static const uint8_t DC    = D6;
@@ -60,19 +59,7 @@ GxIO_Class io(SPI1, D5, DC);
 GxEPD_Class display(io, RST, D3);
 Ultrasonic ultrasonic(A1, 12);
 
-typedef struct {
-  float temperature;
-  float humidity;
-  int light;
-  float co2;
-  float pressure;
-  float altitude;
-  short snow_intensity;
-  short rain_intensity;
-  unsigned long timestamp;
-} SingleResult;
-
-SingleResult current;
+SingleResult current, previous;
 int led2 = D7;
 bool bmp_online = false;
 bool mq_online = false;
@@ -138,7 +125,6 @@ void loop(){
     //display.println(results);
     //display.update();
     //Particle.publish("results", results);
-    //Serial.println();
     checkEnvironment();
     WiFi.off();
 }
@@ -160,15 +146,12 @@ void connectWiFi() {
                       Serial.println("MATCH!");
                       WiFi.setCredentials(known[j][0].c_str(),known[j][1].c_str());
                       WiFi.connect();
-
                       while ( WiFi.connecting()) {
                         // print dots while we wait to connect
                         Serial.print(".");
                         delay(300);
                       }
-
                       Serial.println("\nYou're connected to the network");
-                      Serial.println("Waiting for an ip address");
                       break;
                 }
             }
@@ -180,78 +163,72 @@ void connectWiFi() {
 }
 
 void checkEnvironment() {
-    //Particle.connect();
-    // update time
+    //update time
     //currentTime = rtc.now();
     //Particle.publish("Measurment time", rtc.ISODateString(currentTime));
+    if (nth_result_exists(0)) {
+        previous = get_nth_result(0);
+    } else {
+        // make some inital assumptions
+        previous.humidity = 25.0;
+        previous.temperature = 21.0;
+    }
+
+    current.timestamp = rtc.nowEpoch();
 
     // pressure + temp
-    float temp, pressure, alt;
     if (bmp_online) {
-        get_pressure(temp, pressure, alt);
-        Particle.publish("environment/temperature", String(temp));
-        Particle.publish("environment/pressure", String(pressure));
-        Particle.publish("environment/altitude", String(alt));
-        delay(1000);
+        get_pressure(current);
+        Particle.publish("environment/temperature", String(current.temperature));
+        Particle.publish("environment/pressure", String(current.pressure));
+        Particle.publish("environment/altitude", String(current.altitude));
     } else {
-        temp = 21.0;
+        current.temperature = previous.temperature;
     }
-    float dht_temp, humidity, dew;
+    // humidity + temp
     bool dht_done = false;
     if (bmp_online) {
-        get_humidity(dht_temp, humidity, dew, dht_done);
-        Particle.publish("dht22/temperature", String(dht_temp));
-        Particle.publish("dht22/humidity", String(humidity));
-        Particle.publish("dht22/dew", String(dew));
+        get_humidity(current, previous, dht_done);
+        Particle.publish("dht22/temperature", String(current.humidity));
+        Particle.publish("dht22/humidity", String(current.temperature));
         delay(1000);
     }
-    if (dht_done) {
-      temp = (temp + dht_temp) / 2;
-    } else {
-      humidity = 25.0;
-    }
+
     // GAS
-    float ppm;
     if (mq_online) {
-        ppm = mq.getCorrectedPPM(temp, humidity);
-        Particle.publish("environment/CO2", String(ppm));
+        current.CO2 = mq.getCorrectedPPM(current.temperature, current.humidity);
+        Particle.publish("environment/CO2", String(current.CO2));
         // get_gas(temp, humidity, ppm);  //for calibration output
     }
     // light
     uint16_t luxvalue;
     if (bh_online) {
-        luxvalue = bh.readLightLevel();
-         Particle.publish("environment/light", String(luxvalue));
+        current.light = bh.readLightLevel();
+        Particle.publish("environment/light", String(current.light));
     }
 
     // check for rain
-    unsigned int rain_intensity = ultrasonic.get_n_readings_pct(temp, 40);
-    Particle.publish("environment/rain_intensity", String(rain_intensity));
+    current.rain_intensity = ultrasonic.get_n_readings_pct(current.temperature, 40);
+    Particle.publish("environment/rain_intensity", String(current.rain_intensity));
 
     // check for snow
-    unsigned int snow_intensity = 0;
-    if (temp <= 10) {
-        snow_intensity = get_snow();
+    current.snow_intensity = 0;
+    if (current.temperature <= 10) {
+        current.snow_intensity = get_snow();
     }
-    Particle.publish("environment/snow", String(snow_intensity));
+    Particle.publish("environment/snow", String(current.snow_intensity));
 
     // show results
-    updateInk(temp, humidity, pressure, ppm,  luxvalue, rain_intensity, snow_intensity);
-
-    //if (Particle.connected()) {
-    //    Particle.process();
-    //    Particle.disconnect();
-    //}
-
+    updateInk(current);
 }
 
-void get_pressure(float& temperature, float& pascal, float& meters) {
+void get_pressure(SingleResult& result) {
     bmp.setEnabled(0);
     bmp.triggerMeasurement();
-    bmp.getTemperature(temperature);
-    bmp.getPressure(pascal);
-    bmp.getAltitude(meters);
-    pascal = pascal / 100;
+    bmp.getTemperature(result.temperature);
+    bmp.getPressure(result.pressure);
+    bmp.getAltitude(result.altitude);
+    result.altitude = result.altitude / 100;
 }
 
 void get_gas(float& temperature, float& humidity, float& corrected_ppm) {
@@ -273,47 +250,20 @@ void dht_wrapper() {
 bool get_dht_status() {
     DHT.acquire();
     int result = DHT.getStatus();
-    Particle.publish(String(result));
-    switch (result) {
-    case DHTLIB_OK:
+    if (result == DHTLIB_OK) {
         return true;
-        break;
-    case DHTLIB_ERROR_CHECKSUM:
-        //Serial.println("Error\n\r\tChecksum error");
-        break;
-    case DHTLIB_ERROR_ISR_TIMEOUT:
-        //Serial.println("Error\n\r\tISR time out error");
-        break;
-    case DHTLIB_ERROR_RESPONSE_TIMEOUT:
-        //Serial.println("Error\n\r\tResponse time out error");
-        break;
-    case DHTLIB_ERROR_DATA_TIMEOUT:
-        //Serial.println("Error\n\r\tData time out error");
-        break;
-    case DHTLIB_ERROR_ACQUIRING:
-        return true;
-        break;
-    case DHTLIB_ERROR_DELTA:
-        //Serial.println("Error\n\r\tDelta time to small");
-        break;
-    case DHTLIB_ERROR_NOTSTARTED:
-        //Serial.println("Error\n\r\tNot started");
-        break;
-    default:
-        //Serial.println("Unknown error");
-        break;
     }
     return false;
 }
 
-void get_humidity(float& temperature, float& humidity, float& dew, bool& performed) {
+void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed) {
     if (!bDHTstarted) {
         DHT.acquire();
         bDHTstarted = true;
     }
     if (!DHT.acquiring()) {
-        int result = DHT.getStatus();
-        switch (result) {
+        int status = DHT.getStatus();
+        switch (status) {
         case DHTLIB_OK:
             Particle.publish("OK");
             performed = true;
@@ -352,13 +302,15 @@ void get_humidity(float& temperature, float& humidity, float& dew, bool& perform
             break;
         }
 
-        humidity = DHT.getHumidity();
-        temperature = DHT.getCelsius();
-        dew = DHT.getDewPoint();
+        result.humidity = DHT.getHumidity();
+        result.temperature = (result.temperature + DHT.getCelsius()) / 2;
+        // dew = DHT.getDewPoint();
         bDHTstarted = false;
     } else {
         // get previous
-
+        Particle.publish("Error: DHT still in progress!");
+        result.humidity = prev_result.humidity;
+        result.temperature = (result.temperature + prev_result.temperature) / 2;
     }
 }
 
@@ -392,9 +344,8 @@ const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
     }
 }
 
-
-void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16_t& light, unsigned int& rain, unsigned int& snow) {
-    const unsigned char *cloud_icon = get_cloud_icon(rain, snow);
+void updateInk(SingleResult& result){
+    const unsigned char *cloud_icon = get_cloud_icon(result.rain_intensity, result.snow_intensity);
     //const unsigned char *sun_icon = get_sun_icon(light);
 
     const GFXfont* f8 = &DejaVu_Sans_Mono_8;
@@ -427,13 +378,13 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
     display.setTextColor(GxEPD_BLACK);
     display.setFont(f16);
     display.setCursor(5, 65);
-    display.print(temp, 1);
+    display.print(result.temperature, 1);
     display.print("C");
     display.setCursor(55, 65);
-    display.print(humidity, 1);
+    display.print(result.humidity, 1);
     display.print("%");
     display.setCursor(109, 65);
-    display.print(pressure, 1);
+    display.print(result.pressure, 1);
     display.print(" HPa");
 
     // 4th row (RAIN / CLOUDS)
@@ -456,10 +407,10 @@ void updateInk(float& temp, float& humidity, float& pressure, float& ppm, uint16
     display.setTextColor(GxEPD_BLACK);
     display.setFont(f16);
     display.setCursor(12, 187);
-    display.print(ppm, 1);
+    display.print(result.CO2, 1);
     display.print(" ppm");
     display.setCursor(135, 187);
-    display.print(light);
+    display.print(result.light);
     display.print(" LUX");
 
     display.update();

@@ -20,6 +20,9 @@
   display.drawPicture(BitmapWaveshare_black, BitmapWaveshare_red, sizeof(BitmapWaveshare_black), sizeof(BitmapWaveshare_red), GxEPD::bm_normal);
   delay(5000);
 */
+#include <GxGDEW0154Z04/GxGDEW0154Z04.h>
+#include GxEPD_BitmapExamples
+#include <GxIO/GxIO_SPI/GxIO_SPI.h>
 
 // fonts
 #include <Fonts/DejaVu_Sans_Mono_8.h>

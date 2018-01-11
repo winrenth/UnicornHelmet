@@ -27,8 +27,8 @@ void save_current(SingleResult& result) {
     // pop + unishift current measurement store to include new result as the
     // first one
     SingleResult *results = get_all_results();
-    results[0] = result;
-    for (int i = 0; i<TOTAL_RESULTS; i++) {
+    EEPROM.put(0, result);
+    for (int i = 1; i<TOTAL_RESULTS-1; i++) {
         EEPROM.put(i*SINGLERESULT_SIZE, results[i]);
     }
 }

@@ -173,7 +173,9 @@ void checkEnvironment() {
         previous.humidity = 25.0;
         previous.temperature = 21.0;
     }
-
+    String prev = "T:" + String(previous.temperature) + " H:" + String(previous.humidity) + " P:" + String(previous.pressure);
+    prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.rain_intensity);
+    Particle.publish("previous", prev);
     current.timestamp = rtc.nowEpoch();
 
     // pressure + temp
@@ -182,6 +184,7 @@ void checkEnvironment() {
         Particle.publish("environment/temperature", String(current.temperature));
         Particle.publish("environment/pressure", String(current.pressure));
         Particle.publish("environment/altitude", String(current.altitude));
+        delay(1000);
     } else {
         current.temperature = previous.temperature;
     }
@@ -217,6 +220,9 @@ void checkEnvironment() {
         current.snow_intensity = get_snow();
     }
     Particle.publish("environment/snow", String(current.snow_intensity));
+
+    // save results
+    save_current(current);
 
     // show results
     updateInk(current);

@@ -42,6 +42,8 @@
 #define IR_PROBE_DELAY 5
 #define UDP_PORT 8888
 
+#define PARTICLE_CLOUD true
+
 //declarations
 void sendResult();
 void checkEnvironment();
@@ -102,30 +104,39 @@ void setup(){
     rtc.begin(&UDPClient, "north-america.pool.ntp.org");
     rtc.setTimeZone(1); // gmt offset
 
+
     if (bmp.initialize()) {
-        Particle.publish("DEBUG", "BMP280 sensor found...");
+      if(PARTICLE_CLOUD){
+          Particle.publish("DEBUG", "BMP280 sensor found...");}
         bmp_online = true;
     } else {
-        Particle.publish("WARN", "Could not find a valid BMP280 sensor, check wiring!");
+        if(PARTICLE_CLOUD){
+            Particle.publish("WARN", "Could not find a valid BMP280 sensor, check wiring!");}
     }
     if (mq.getRZero() > 1) {
-        Particle.publish(String(mq.getRZero()), "MQ135 sensor found...");
+      if(PARTICLE_CLOUD){
+          Particle.publish(String(mq.getRZero()), "MQ135 sensor found...");}
         mq_online = true;
     } else {
-        Particle.publish("WARN", "Could not find a valid MQ135 sensor, check wiring!");
+      if(PARTICLE_CLOUD){
+          Particle.publish("WARN", "Could not find a valid MQ135 sensor, check wiring!");}
     }
     if (bh.begin(BH1750::ONE_TIME_HIGH_RES_MODE)){
-        Particle.publish("DEBUG", "BH1750 sensor found...");
+      if(PARTICLE_CLOUD){
+          Particle.publish("DEBUG", "BH1750 sensor found...");}
         bh_online = true;
     }
-    Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");
+    if(PARTICLE_CLOUD){
+      Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");}
     if (get_dht_status()){
-        Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");
+      if(PARTICLE_CLOUD){
+          Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");}
         dht_online = true;
     }
 
     //timer.start();
-    Particle.publish("DEBUG", "started!");
+    if(PARTICLE_CLOUD){
+      Particle.publish("DEBUG", "started!");}
 
 }
 
@@ -214,7 +225,8 @@ void sendResult() {
     char b[sizeof(packet)];
     memcpy(b, &packet, sizeof(packet));
     if (Udp.sendPacket(b, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
-        Particle.publish("UDP Error");
+      if(PARTICLE_CLOUD){
+          Particle.publish("UDP Error");}
     }
     //unsigned char* ptr= (unsigned char*)&packet;
     //if (Udp.sendPacket(ptr, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
@@ -228,7 +240,8 @@ void sendResult() {
     delay(1000);
     int count = Udp.receivePacket((byte*)message, 127);
     memcpy(&timestamp, message, sizeof(timestamp));
-    Particle.publish("UDP timestamp", String(timestamp));
+    if(PARTICLE_CLOUD){
+      Particle.publish("UDP timestamp", String(timestamp));}
     if (Udp.parsePacket() > 0) {
         // Read timestamp from response
         Udp.read(buff, sizeof(timestamp));
@@ -255,12 +268,14 @@ void checkEnvironment() {
     }
     String prev = "T:" + String(previous.temperature) + " H:" + String(previous.humidity) + " P:" + String(previous.pressure);
     prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.timestamp);
-    Particle.publish("previous", prev);
+    if(PARTICLE_CLOUD){
+      Particle.publish("previous", prev);}
 
     SingleResult previous2 = get_nth_result(2);
     String prev2 = "T:" + String(previous2.temperature) + " H:" + String(previous2.humidity) + " P:" + String(previous2.pressure);
     prev2 += " A" + String(previous2.altitude) + " C:" + String(previous2.CO2)  + " L:" + String(previous2.light)  + " R:" + String(previous2.timestamp);
-    Particle.publish("previous2", prev2);
+    if(PARTICLE_CLOUD){
+      Particle.publish("previous2", prev2);}
     currentTime = rtc.now();
     current.timestamp = rtc.nowEpoch();
 
@@ -270,9 +285,10 @@ void checkEnvironment() {
     // pressure + temp
     if (bmp_online) {
         get_pressure(current);
-        Particle.publish("environment/temperature", String(current.temperature));
-        Particle.publish("environment/pressure", String(current.pressure));
-        Particle.publish("environment/altitude", String(current.altitude));
+        if(PARTICLE_CLOUD){
+          Particle.publish("environment/temperature", String(current.temperature));
+          Particle.publish("environment/pressure", String(current.pressure));
+          Particle.publish("environment/altitude", String(current.altitude));}
         delay(1000);
     } else {
         current.temperature = previous.temperature;
@@ -281,34 +297,39 @@ void checkEnvironment() {
     bool dht_done = false;
     if (bmp_online) {
         get_humidity(current, previous, dht_done);
-        Particle.publish("dht22/temperature", String(current.humidity));
-        Particle.publish("dht22/humidity", String(current.temperature));
+        if(PARTICLE_CLOUD){
+          Particle.publish("dht22/temperature", String(current.humidity));
+          Particle.publish("dht22/humidity", String(current.temperature));}
         delay(1000);
     }
 
     // GAS
     if (mq_online) {
         current.CO2 = mq.getCorrectedPPM(current.temperature, current.humidity);
-        Particle.publish("environment/CO2", String(current.CO2));
+        if(PARTICLE_CLOUD){
+          Particle.publish("environment/CO2", String(current.CO2));}
         // get_gas(temp, humidity, ppm);  //for calibration output
     }
     // light
     uint16_t luxvalue;
     if (bh_online) {
         current.light = bh.readLightLevel();
-        Particle.publish("environment/light", String(current.light));
+        if(PARTICLE_CLOUD){
+          Particle.publish("environment/light", String(current.light));}
     }
 
     // check for rain
     current.rain_intensity = ultrasonic.get_n_readings_pct(current.temperature, 40);
-    Particle.publish("environment/rain_intensity", String(current.rain_intensity));
+    if(PARTICLE_CLOUD){
+      Particle.publish("environment/rain_intensity", String(current.rain_intensity));}
 
     // check for snow
     current.snow_intensity = 0;
     if (current.temperature <= 10) {
         current.snow_intensity = get_snow();
     }
-    Particle.publish("environment/snow", String(current.snow_intensity));
+    if(PARTICLE_CLOUD){
+      Particle.publish("environment/snow", String(current.snow_intensity));}
 
     // save results
     save_current(current);
@@ -322,9 +343,11 @@ void get_battery_level(SingleResult& result) {
     digitalWrite(PIN_BATTERY_ON, HIGH);
     delayMicroseconds(4);
     uint16_t lvl = analogRead(PIN_BATTERY_MEASURE);
-    Particle.publish("battery analog input read", String(lvl));
+    if(PARTICLE_CLOUD){
+      Particle.publish("battery analog input read", String(lvl));}
     lvl = (uint16_t) round_float_to_int(423*lvl/3465);
-    Particle.publish("battery V", String(lvl));
+    if(PARTICLE_CLOUD){
+      Particle.publish("battery V", String(lvl));}
     digitalWrite(PIN_BATTERY_ON, LOW);
     //range is 0 to 70
     lvl = lvl > 450 ? 100 : (lvl < 380 ? 0 : lvl-380);
@@ -348,9 +371,10 @@ void get_gas(float& temperature, float& humidity, float& corrected_ppm) {
     float resistance = mq.getResistance();
     float ppm = mq.getPPM();
     corrected_ppm = mq.getCorrectedPPM(temperature, humidity);
-    Particle.publish("environment/rzero", String(rzero));
-    Particle.publish("environment/correctedRZero", String(correctedRZero));
-    Particle.publish("environment/resistance", String(resistance));
+    if(PARTICLE_CLOUD){
+      Particle.publish("environment/rzero", String(rzero));
+      Particle.publish("environment/correctedRZero", String(correctedRZero));
+      Particle.publish("environment/resistance", String(resistance));}
 }
 
 void dht_wrapper() {
@@ -370,7 +394,8 @@ void start_dht_acquire(){
         DHT.acquire();
         bDHTstarted = true;
     } else {
-        Particle.publish("DHT not finished YET");
+        if(PARTICLE_CLOUD){
+          Particle.publish("DHT not finished YET");}
     }
 }
 void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed) {
@@ -378,40 +403,49 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
         int status = DHT.getStatus();
         switch (status) {
         case DHTLIB_OK:
-            Particle.publish("OK");
+          if(PARTICLE_CLOUD){
+              Particle.publish("OK");}
             performed = true;
             break;
         case DHTLIB_ERROR_CHECKSUM:
             delay(1000);
-            Particle.publish("Error\n\r\tChecksum error");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tChecksum error");}
             break;
         case DHTLIB_ERROR_ISR_TIMEOUT:
             delay(1000);
-            Particle.publish("Error\n\r\tISR time out error");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tISR time out error");}
             break;
         case DHTLIB_ERROR_RESPONSE_TIMEOUT:
             delay(1000);
-            Particle.publish("Error\n\r\tResponse time out error");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tResponse time out error");}
             break;
         case DHTLIB_ERROR_DATA_TIMEOUT:
             delay(1000);
-            Particle.publish("Error\n\r\tData time out error");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tData time out error");}
             break;
         case DHTLIB_ERROR_ACQUIRING:
             delay(1000);
-            Particle.publish("Error\n\r\tAcquiring");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tAcquiring");}
             break;
         case DHTLIB_ERROR_DELTA:
             delay(1000);
-            Particle.publish("Error\n\r\tDelta time to small");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tDelta time to small");}
             break;
         case DHTLIB_ERROR_NOTSTARTED:
             delay(1000);
-            Particle.publish("Error\n\r\tNot started");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Error\n\r\tNot started");}
             break;
         default:
             delay(1000);
-            Particle.publish("Unknown error");
+            if(PARTICLE_CLOUD){
+              Particle.publish("Unknown error");}
             break;
         }
 
@@ -421,7 +455,8 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
         bDHTstarted = false;
     } else {
         // get previous
-        Particle.publish("Error: DHT still in progress!");
+        if(PARTICLE_CLOUD){
+          Particle.publish("Error: DHT still in progress!");}
         result.humidity = prev_result.humidity;
         result.temperature = (result.temperature + prev_result.temperature) / 2;
     }
@@ -501,7 +536,8 @@ void draw_pressure_chart(SingleResult& result) {
         max_p += min_p * -1;
         min_p += min_p * -1;
     }
-    Particle.publish("minmax", String(min_p) + " " + String(max_p));
+    if(PARTICLE_CLOUD){
+      Particle.publish("minmax", String(min_p) + " " + String(max_p));}
     delta = max_p - min_p;
     if (delta <= 1) {
         offset = min_p + 1;

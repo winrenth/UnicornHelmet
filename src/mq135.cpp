@@ -27,6 +27,7 @@ v1.0 - First release
 MQ135::MQ135(uint8_t pin) {
   _pin = pin;
   pinMode(_pin, INPUT);
+  r0 = getRZero();
 }
 
 
@@ -87,7 +88,7 @@ float MQ135::getCorrectedResistance(float t, float h) {
 */
 /**************************************************************************/
 float MQ135::getPPM() {
-  return PARA * pow((getResistance()/RZERO), -PARB);
+  return PARA * pow((getResistance()/r0), -PARB);
 }
 
 /**************************************************************************/
@@ -102,7 +103,8 @@ float MQ135::getPPM() {
 */
 /**************************************************************************/
 float MQ135::getCorrectedPPM(float t, float h) {
-  return PARA * pow((getCorrectedResistance(t, h)/RZERO), -PARB);
+  r0 = getCorrectedRZero(t, h);
+  return PARA * pow((getCorrectedResistance(t, h)/r0), -PARB);
 }
 
 /**************************************************************************/
@@ -130,4 +132,3 @@ float MQ135::getRZero() {
 float MQ135::getCorrectedRZero(float t, float h) {
   return getCorrectedResistance(t, h) * pow((ATMOCO2/PARA), (1./PARB));
 }
-

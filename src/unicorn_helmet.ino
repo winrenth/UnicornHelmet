@@ -99,7 +99,6 @@ void setup(){
     Serial.begin(115200);
     Wire.begin();
     display.init();
-
     rtc.begin(&UDPClient, "north-america.pool.ntp.org");
     rtc.setTimeZone(1); // gmt offset
 
@@ -228,7 +227,6 @@ void sendResult() {
     //Udp.endPacket();
     delay(1000);
     int count = Udp.receivePacket((byte*)message, 127);
-    Particle.publish("UDP timestamp size", String(count));
     memcpy(&timestamp, message, sizeof(timestamp));
     Particle.publish("UDP timestamp", String(timestamp));
     if (Udp.parsePacket() > 0) {
@@ -241,8 +239,6 @@ void sendResult() {
             Udp.read();
     }
     Udp.stop();
-    delay(1000);
-    Particle.publish("UDP timestamp", String(timestamp));
 }
 
 void checkEnvironment() {

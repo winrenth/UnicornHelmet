@@ -24,7 +24,7 @@ v1.0 - First release
 /// The load resistance on the board
 #define RLOAD 10.0
 /// Calibration resistance at atmospheric CO2 level
-#define RZERO 25
+#define RZERO 11
 /// Parameters for calculating ppm of CO2 from sensor resistance
 #define PARA 116.6020682
 #define PARB 2.769034857
@@ -44,6 +44,7 @@ v1.0 - First release
 class MQ135 {
  private:
   uint8_t _pin;
+  float r0;
 
  public:
   MQ135(uint8_t pin);
@@ -56,4 +57,3 @@ class MQ135 {
   float getCorrectedRZero(float t, float h);
 };
 #endif
-

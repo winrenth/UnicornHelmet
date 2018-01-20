@@ -1,3 +1,6 @@
+#ifndef EEPROM_H_
+#define EEPROM_H_
+
 #include "application.h"
 #include "Particle.h"
 
@@ -10,14 +13,32 @@ typedef struct {
   uint16_t light;
   float CO2;
   float pressure;
-  float altitude;
+  uint16_t altitude;
   short snow_intensity;
   short rain_intensity;
-  unsigned long timestamp;
+  uint8_t battery;
+  unsigned long timestamp=0;
 } SingleResult;
+
+typedef struct {
+  char device[24];
+  unsigned long timestamp=0;
+  float temperature;
+  float pressure;
+  float humidity;
+  float CO2;
+  int16_t light;
+  uint8_t battery;
+  short snow_intensity;
+  short rain_intensity;
+  short result=0;
+} UnicornProto;
 
 int get_nth_result_address(uint16_t n);
 bool nth_result_exists(uint16_t n);
 SingleResult get_nth_result(uint16_t n=0);
 SingleResult* get_all_results();
 void save_current(SingleResult& result);
+
+
+#endif

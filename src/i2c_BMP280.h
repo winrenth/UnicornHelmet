@@ -298,12 +298,12 @@ public:
     };
 
     /**<  gives the number of meters above sea level */
-    void getAltitude(float& meter)
+    void getAltitude(uint16_t& meter)
     {
         uint32_t iPascal;
         getPressure(iPascal);
 
-        meter = 44330.0*(1-pow(float(iPascal)/101325.0,1.0/5.255));
+        meter = (uint16_t)(44330.0*(1-pow(float(iPascal)/101325.0,1.0/5.255)) + 0.5);
 
     };
 
@@ -338,7 +338,3 @@ public:
 //BMP280 bmp280 = BMP280();
 
 #endif
-
-
-
-

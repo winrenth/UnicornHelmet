@@ -28,26 +28,40 @@
 // HC-SR04 (ultasonic)
 #include "hc_sr04.h"
 
-#define DHTTYPE DHT22             // Sensor type DHT11/21/22/AM2301/AM2302
-#define DHTPIN D15                // Digital pin for DHT22
-#define PIN_MQ135 A6              // Anlog pin for GAS sensor
-#define PIN_TRCT A0               // Anlog pin for IR sensor
+// utility functions
+#include "utility.h"
+
+#define DHTTYPE DHT22               // Sensor type DHT11/21/22/AM2301/AM2302
+#define DHTPIN D15                  // Digital pin for DHT22
+#define PIN_MQ135 A6                // Anlog pin for GAS sensor
+#define PIN_TRCT A0                 // Anlog pin for IR sensor
+#define PIN_BATTERY_MEASURE A2      // Pin to read buttery current
+#define PIN_BATTERY_ON A3           // Pin to turn on battery measurement
+#define PIN_SENSOR_ON A4            // Pin to turn on sensros
 #define HAS_RED_COLOR
 #define IR_PROBE_DELAY 5
+#define UDP_PORT 8888
 
 //declarations
+void sendResult();
 void checkEnvironment();
 int get_snow(int n = 40);
 void connectWiFi();
 void get_pressure(SingleResult& result);
 bool get_dht_status();
+void start_dht_acquire();
 void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed);
+void draw_bar_chart(GxEPD_Class& ink, int x, int y, float* data, int data_size);
+void draw_pressure_chart(SingleResult& result);
 void updateInk(SingleResult& result);
+void get_battery_level(SingleResult& result);
 void dht_wrapper(); // must be declared before the lib initialization
 
 static const uint8_t DC    = D6;
 static const uint8_t RST   = D7;
+IPAddress UDP_ADDR(139, 59, 177, 138);
 
+UDP Udp;
 BMP280 bmp;
 MQ135 mq = MQ135(PIN_MQ135);
 UDP UDPClient;
@@ -69,12 +83,19 @@ bool ink_online = false;
 unsigned long currentTime;
 unsigned long lastTime = 0UL;
 bool bDHTstarted;
+bool con = false;
 
 
 //Timer timer(30000, checkEnvironment);
 
 void setup(){
-    //Particle.connect();
+    pinMode(PIN_TRCT, INPUT);
+    pinMode(PIN_BATTERY_ON, OUTPUT);
+    digitalWrite(PIN_BATTERY_ON, LOW);
+    pinMode(PIN_SENSOR_ON, OUTPUT);
+    digitalWrite(PIN_SENSOR_ON, LOW);
+    pinMode(PIN_BATTERY_MEASURE, INPUT);
+
     Serial.begin(115200);
     Wire.begin();
     display.init();
@@ -106,12 +127,15 @@ void setup(){
 
     //timer.start();
     Particle.publish("DEBUG", "started!");
-    pinMode(PIN_TRCT, INPUT);
+
 }
 
 void loop(){
-    delay(15000);
-    connectWiFi();
+    delay(10000);
+    if (!con) {
+        connectWiFi();
+        con = true;
+    }
     //int ad_value;
     //ad_value = analogRead(A0);
     //Particle.publish("ad_value", String(ad_value));
@@ -126,11 +150,14 @@ void loop(){
     //display.update();
     //Particle.publish("results", results);
     checkEnvironment();
-    WiFi.off();
+    sendResult();
+    //
+    //WiFi.off();
 }
 
 void connectWiFi() {
-    String known[3][2] = {
+    String known[4][2] = {
+        { "Dragon IX", "00000000"},
         { "LittleDragon", "00000000"},
         { "DARKOPL_2", "00000000" },
         { "SMOKI_SOKOLEC", "00000000" }
@@ -162,21 +189,87 @@ void connectWiFi() {
 
 }
 
+void sendResult() {
+    delay(1000);
+    Udp.begin(UDP_PORT);
+
+    unsigned long timestamp;
+    char buff[32] = {0};
+    char message[32] = {0};
+
+    UnicornProto packet;
+    strcpy(packet.device, System.deviceID().c_str());
+    Serial.println(packet.device);
+
+    packet.timestamp = current.timestamp;
+    packet.temperature = current.temperature;
+    packet.humidity = current.humidity;
+    packet.light = current.light;
+    packet.pressure = current.pressure;
+    packet.rain_intensity = current.rain_intensity;
+    packet.snow_intensity = current.snow_intensity;
+    packet.CO2 = current.CO2;
+    packet.battery = current.battery;
+
+    //Sending Side
+    char b[sizeof(packet)];
+    memcpy(b, &packet, sizeof(packet));
+    if (Udp.sendPacket(b, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
+        Particle.publish("UDP Error");
+    }
+    //unsigned char* ptr= (unsigned char*)&packet;
+    //if (Udp.sendPacket(ptr, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
+    //    Particle.publish("UDP Error");
+    //}
+    //Udp.beginPacket(UDP_ADDR, UDP_PORT);
+    //unsigned char* ptr= (unsigned char*)&current;
+    //int sent = Udp.write(ptr, sizeof(current));
+    //Particle.publish("UDP sent bytes", String(sent));
+    //Udp.endPacket();
+    delay(1000);
+    int count = Udp.receivePacket((byte*)message, 127);
+    Particle.publish("UDP timestamp size", String(count));
+    memcpy(&timestamp, message, sizeof(timestamp));
+    Particle.publish("UDP timestamp", String(timestamp));
+    if (Udp.parsePacket() > 0) {
+        // Read timestamp from response
+        Udp.read(buff, sizeof(timestamp));
+        //buff = htonl(buff);
+        memcpy(&timestamp, buff, sizeof(timestamp));
+        // Ignore other chars
+        while(Udp.available())
+            Udp.read();
+    }
+    Udp.stop();
+    delay(1000);
+    Particle.publish("UDP timestamp", String(timestamp));
+}
+
 void checkEnvironment() {
+    digitalWrite(PIN_SENSOR_ON, HIGH);
+    start_dht_acquire();
     //update time
     //currentTime = rtc.now();
     //Particle.publish("Measurment time", rtc.ISODateString(currentTime));
-    if (nth_result_exists(0)) {
-        previous = get_nth_result(0);
-    } else {
+    previous = get_nth_result(0);
+    if (!previous.timestamp){
         // make some inital assumptions
         previous.humidity = 25.0;
         previous.temperature = 21.0;
     }
     String prev = "T:" + String(previous.temperature) + " H:" + String(previous.humidity) + " P:" + String(previous.pressure);
-    prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.rain_intensity);
+    prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.timestamp);
     Particle.publish("previous", prev);
+
+    SingleResult previous2 = get_nth_result(2);
+    String prev2 = "T:" + String(previous2.temperature) + " H:" + String(previous2.humidity) + " P:" + String(previous2.pressure);
+    prev2 += " A" + String(previous2.altitude) + " C:" + String(previous2.CO2)  + " L:" + String(previous2.light)  + " R:" + String(previous2.timestamp);
+    Particle.publish("previous2", prev2);
+    currentTime = rtc.now();
     current.timestamp = rtc.nowEpoch();
+
+    // check battery level
+    get_battery_level(current);
 
     // pressure + temp
     if (bmp_online) {
@@ -226,6 +319,21 @@ void checkEnvironment() {
 
     // show results
     updateInk(current);
+    digitalWrite(PIN_SENSOR_ON, LOW);
+}
+
+void get_battery_level(SingleResult& result) {
+    digitalWrite(PIN_BATTERY_ON, HIGH);
+    delayMicroseconds(4);
+    uint16_t lvl = analogRead(PIN_BATTERY_MEASURE);
+    Particle.publish("battery analog input read", String(lvl));
+    lvl = (uint16_t) round_float_to_int(423*lvl/3465);
+    Particle.publish("battery V", String(lvl));
+    digitalWrite(PIN_BATTERY_ON, LOW);
+    //range is 0 to 70
+    lvl = lvl > 450 ? 100 : (lvl < 380 ? 0 : lvl-380);
+    result.battery = lvl;
+
 }
 
 void get_pressure(SingleResult& result) {
@@ -234,7 +342,7 @@ void get_pressure(SingleResult& result) {
     bmp.getTemperature(result.temperature);
     bmp.getPressure(result.pressure);
     bmp.getAltitude(result.altitude);
-    result.altitude = result.altitude / 100;
+    result.pressure = result.pressure / 100;
 }
 
 void get_gas(float& temperature, float& humidity, float& corrected_ppm) {
@@ -261,12 +369,15 @@ bool get_dht_status() {
     }
     return false;
 }
-
-void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed) {
+void start_dht_acquire(){
     if (!bDHTstarted) {
         DHT.acquire();
         bDHTstarted = true;
+    } else {
+        Particle.publish("DHT not finished YET");
     }
+}
+void get_humidity(SingleResult& result, SingleResult& prev_result, bool& performed) {
     if (!DHT.acquiring()) {
         int status = DHT.getStatus();
         switch (status) {
@@ -350,23 +461,95 @@ const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
     }
 }
 
-void updateInk(SingleResult& result){
-    const unsigned char *cloud_icon = get_cloud_icon(result.rain_intensity, result.snow_intensity);
-    //const unsigned char *sun_icon = get_sun_icon(light);
+const unsigned char *get_sun_icon(uint16_t light, int timesptamp){
 
+}
+
+
+void draw_bar_chart(GxEPD_Class& ink, int x, int y, float* data, int data_size){
+    // (x, i) top left container corener (icnlusive)
+    // accepts arry of floats to plot
+    // plots in 100x59px box
+
+    // char base
+    ink.drawFastHLine(x+3, y+56, 94, GxEPD_RED);
+    for (int i=0; i<data_size; i++) {
+        uint32_t val = round_float_to_int(data[i]);
+        ink.fillRect(x+6+(i*4), y+4+(52-val), 3, val, GxEPD_BLACK);
+    }
+}
+
+void draw_pressure_chart(SingleResult& result) {
+    SingleResult *results = get_all_results();
+    int num_results = get_num_of_results(results, result.timestamp);
+    num_results = num_results > 22 ? 22 : num_results;
+    //Particle.publish("num_results", String(num_results));
+    //delay(1000);
+
+    float p_results[num_results], delta, offset, min_p=0, max_p=0;
+    int j = 0;
+    for (int i=num_results; i>0; i--){
+        p_results[j] = results[i].temperature ;
+        if (j==0) {
+            max_p = p_results[j];
+            min_p = p_results[j];
+        }
+        if (p_results[j]  > max_p) max_p = p_results[j];
+        if (p_results[j]  < min_p) min_p = p_results[j];
+        j++;
+    }
+    // get rid of negative values
+    if (min_p < 0) {
+        for (int i=0; i<num_results; i++)
+            p_results[i] +=  min_p * -1;
+        max_p += min_p * -1;
+        min_p += min_p * -1;
+    }
+    Particle.publish("minmax", String(min_p) + " " + String(max_p));
+    delta = max_p - min_p;
+    if (delta <= 1) {
+        offset = min_p + 1;
+        max_p = 2;
+    } else {
+        offset = min_p - delta * 0.1;
+        max_p -= offset;
+    }
+    for (int i=0; i<num_results; i++)
+        p_results[i] =  max_p ? ((p_results[i] - offset) * 52/(max_p)) : 0;
+    delete[] results;
+
+    draw_bar_chart(display, 99, 80, p_results, num_results);
+}
+
+void updateInk(SingleResult& result){
     const GFXfont* f8 = &DejaVu_Sans_Mono_8;
     const GFXfont* f12 = &DejaVu_Sans_Mono_12;
     const GFXfont* f16 = &Nimbus_Sans_L_Bold_Condensed_16;
+
+    const unsigned char *cloud_icon = get_cloud_icon(result.rain_intensity, result.snow_intensity);
+    //const unsigned char *sun_icon = get_sun_icon(light);
 
     display.setRotation(3);
     display.fillRect(0, 0, 200, 200, GxEPD_WHITE);
     // First row (status | date)
     display.drawRect(0, 0, 100, 20, GxEPD_BLACK);
+
+    //battery
+    display.drawRect(3, 3, 33, 14, GxEPD_BLACK);
+    display.fillRect(36, 7, 3, 6, GxEPD_BLACK);
+    for (int i=0; i<4; i++){
+        display.fillRect(4+i*8, 5, 7, 10, GxEPD_RED);
+    }
+    display.setTextColor(GxEPD_BLACK);
+    display.setFont(f12);
+    display.setCursor(44, 14);
+    display.print("100%");
+
     display.fillRect(100, 0, 100, 20, GxEPD_BLACK);
     display.setTextColor(GxEPD_WHITE);
     display.setFont(f8);
     display.setCursor(110, 14);
-    display.println("18-01-06 15:55");
+    display.println(get_time_string(rtc, currentTime));
 
     // 2nd row (TMP | HUM | Pressure)
     display.fillRect(0, 19, 200, 24, GxEPD_RED);
@@ -398,7 +581,8 @@ void updateInk(SingleResult& result){
     display.drawRect(0, 80, 100, 59, GxEPD_BLACK);
     display.drawRect(99, 80, 100, 59, GxEPD_BLACK);
     display.drawBitmap(icons_sun, 24, 85, 50, 50, GxEPD_WHITE);
-    display.drawBitmap(cloud_icon, 124, 85, 50, 50, GxEPD_WHITE);
+    //display.drawBitmap(cloud_icon, 124, 85, 50, 50, GxEPD_WHITE);
+    draw_pressure_chart(result);
 
     // 5th row (CO2 / DEW POINT)
     display.fillRect(0, 140, 200, 24, GxEPD_RED);

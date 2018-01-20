@@ -1,26 +1,30 @@
 #include "eeprom.h"
 
+
 int get_nth_result_address(uint16_t n) {
     return n*SINGLERESULT_SIZE;
 }
 
 bool nth_result_exists(uint16_t n) {
+    return true;
     return EEPROM.read(get_nth_result_address(n)) != 255;
 }
 
 SingleResult get_nth_result(uint16_t n) {
     uint16_t address = get_nth_result_address(n);
     SingleResult result;
-    EEPROM.get(address, result);
+    if (nth_result_exists(address)) {
+        EEPROM.get(address, result);
+    }
     return result;
 }
 
 SingleResult* get_all_results(){
-    SingleResult results [TOTAL_RESULTS];
+    SingleResult *all_results = new SingleResult[TOTAL_RESULTS];
     for (int i = 0; i<TOTAL_RESULTS; i++) {
-        results[i] = get_nth_result(i);
+        all_results[i] = get_nth_result(i);
     }
-    return results;
+    return all_results;
 }
 
 void save_current(SingleResult& result) {
@@ -28,7 +32,8 @@ void save_current(SingleResult& result) {
     // first one
     SingleResult *results = get_all_results();
     EEPROM.put(0, result);
-    for (int i = 1; i<TOTAL_RESULTS-1; i++) {
-        EEPROM.put(i*SINGLERESULT_SIZE, results[i]);
+    for (int i = 1; i<TOTAL_RESULTS; i++) {
+        EEPROM.put(i*SINGLERESULT_SIZE, results[i-1]);
     }
+    delete[] results;
 }

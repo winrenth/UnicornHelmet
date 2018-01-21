@@ -103,39 +103,29 @@ void setup(){
     Wire.begin();
     display.init();
     setSyncProvider(getNtpTime);
+
     if (bmp.initialize()) {
-      if(PARTICLE_CLOUD){
-          Particle.publish("DEBUG", "BMP280 sensor found...");}
+        if(PARTICLE_CLOUD) Particle.publish("DEBUG", "BMP280 sensor found...");
         bmp_online = true;
     } else {
-        if(PARTICLE_CLOUD){
-            Particle.publish("WARN", "Could not find a valid BMP280 sensor, check wiring!");}
+        if(PARTICLE_CLOUD) Particle.publish("WARN", "Could not find a valid BMP280 sensor, check wiring!");
     }
     if (mq.getRZero() > 1) {
-      if(PARTICLE_CLOUD){
-          Particle.publish(String(mq.getRZero()), "MQ135 sensor found...");}
+        if(PARTICLE_CLOUD) Particle.publish(String(mq.getRZero()), "MQ135 sensor found...");
         mq_online = true;
     } else {
-      if(PARTICLE_CLOUD){
-          Particle.publish("WARN", "Could not find a valid MQ135 sensor, check wiring!");}
+        if(PARTICLE_CLOUD) Particle.publish("WARN", "Could not find a valid MQ135 sensor, check wiring!");
     }
     if (bh.begin(BH1750::ONE_TIME_HIGH_RES_MODE)){
-      if(PARTICLE_CLOUD){
-          Particle.publish("DEBUG", "BH1750 sensor found...");}
+        if(PARTICLE_CLOUD) Particle.publish("DEBUG", "BH1750 sensor found...");
         bh_online = true;
     }
-    if(PARTICLE_CLOUD){
-      Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");}
+    if(PARTICLE_CLOUD) Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");
     if (get_dht_status()){
-      if(PARTICLE_CLOUD){
-          Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");}
+        if(PARTICLE_CLOUD) Particle.publish(String(analogRead(DHTPIN)), "DHT22 sensor found...");
         dht_online = true;
     }
-
     //timer.start();
-    if(PARTICLE_CLOUD){
-      Particle.publish("DEBUG", "started!");}
-
 }
 
 void loop(){
@@ -195,8 +185,10 @@ void connectWiFi() {
             }
         }
     }
-    Particle.connect();
-    Particle.process();
+    if(PARTICLE_CLOUD){
+        Particle.connect();
+        Particle.process();
+    }
 
 }
 
@@ -226,8 +218,7 @@ void sendResult() {
     char b[sizeof(packet)];
     memcpy(b, &packet, sizeof(packet));
     if (Udp.sendPacket(b, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
-      if(PARTICLE_CLOUD){
-          Particle.publish("UDP Error");}
+        if(PARTICLE_CLOUD) Particle.publish("UDP Error");
     }
     //unsigned char* ptr= (unsigned char*)&packet;
     //if (Udp.sendPacket(ptr, sizeof(packet), UDP_ADDR, UDP_PORT) < 0) {
@@ -241,8 +232,7 @@ void sendResult() {
     delay(1000);
     int count = Udp.receivePacket((byte*)message, 127);
     memcpy(&timestamp, message, sizeof(timestamp));
-    if(PARTICLE_CLOUD){
-      Particle.publish("UDP timestamp", String(timestamp));}
+    if(PARTICLE_CLOUD) Particle.publish("UDP timestamp", String(timestamp));
     if (Udp.parsePacket() > 0) {
         // Read timestamp from response
         Udp.read(buff, sizeof(timestamp));
@@ -264,16 +254,20 @@ void checkEnvironment() {
         previous.humidity = 25.0;
         previous.temperature = 21.0;
     }
-    String prev = "T:" + String(previous.temperature) + " H:" + String(previous.humidity) + " P:" + String(previous.pressure);
-    prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.timestamp);
-    if(PARTICLE_CLOUD){
-      Particle.publish("previous", prev);}
+    //String prev = "T:" + String(previous.temperature) + " H:" + String(previous.humidity) + " P:" + String(previous.pressure);
+    //prev += " A" + String(previous.altitude) + " C:" + String(previous.CO2)  + " L:" + String(previous.light)  + " R:" + String(previous.timestamp);
+    //if(PARTICLE_CLOUD){
+    //    Particle.publish("previous", prev);
+    //}
 
-    SingleResult previous2 = get_nth_result(2);
-    String prev2 = "T:" + String(previous2.temperature) + " H:" + String(previous2.humidity) + " P:" + String(previous2.pressure);
-    prev2 += " A" + String(previous2.altitude) + " C:" + String(previous2.CO2)  + " L:" + String(previous2.light)  + " R:" + String(previous2.timestamp);
-    if(PARTICLE_CLOUD){
-      Particle.publish("previous2", prev2);}
+    //SingleResult previous2 = get_nth_result(2);
+    //String prev2 = "T:" + String(previous2.temperature) + " H:" + String(previous2.humidity) + " P:" + String(previous2.pressure);
+    //prev2 += " A" + String(previous2.altitude) + " C:" + String(previous2.CO2)  + " L:" + String(previous2.light)  + " R:" + String(previous2.timestamp);
+    //if(PARTICLE_CLOUD){
+    //    Particle.publish("previous2", prev2);
+    //}
+    
+    // set current time
     current.timestamp = currentTime;
 
     // check battery level
@@ -283,10 +277,12 @@ void checkEnvironment() {
     if (bmp_online) {
         get_pressure(current);
         if(PARTICLE_CLOUD){
-          Particle.publish("environment/temperature", String(current.temperature));
-          Particle.publish("environment/pressure", String(current.pressure));
-          Particle.publish("environment/altitude", String(current.altitude));}
-        delay(1000);
+            Particle.publish("environment/temperature", String(current.temperature));
+            Particle.publish("environment/pressure", String(current.pressure));
+            Particle.publish("environment/altitude", String(current.altitude));
+            delay(1000);
+        }
+
     } else {
         current.temperature = previous.temperature;
     }
@@ -295,16 +291,18 @@ void checkEnvironment() {
     if (bmp_online) {
         get_humidity(current, previous, dht_done);
         if(PARTICLE_CLOUD){
-          Particle.publish("dht22/temperature", String(current.temperature));
-          Particle.publish("dht22/humidity", String(current.humidity));}
-        delay(1000);
+            Particle.publish("dht22/temperature", String(current.temperature));
+            Particle.publish("dht22/humidity", String(current.humidity));
+            delay(1000);
+        }
     }
 
     // GAS
     if (mq_online) {
         current.CO2 = mq.getCorrectedPPM(current.temperature, current.humidity);
         if(PARTICLE_CLOUD){
-          Particle.publish("environment/CO2", String(current.CO2));}
+            Particle.publish("environment/CO2", String(current.CO2));
+        }
         // get_gas(temp, humidity, ppm);  //for calibration output
     }
     // light
@@ -312,13 +310,15 @@ void checkEnvironment() {
     if (bh_online) {
         current.light = bh.readLightLevel();
         if(PARTICLE_CLOUD){
-          Particle.publish("environment/light", String(current.light));}
+            Particle.publish("environment/light", String(current.light));
+        }
     }
 
     // check for rain
     current.rain_intensity = ultrasonic.get_n_readings_pct(current.temperature, 40);
     if(PARTICLE_CLOUD){
-      Particle.publish("environment/rain_intensity", String(current.rain_intensity));}
+        Particle.publish("environment/rain_intensity", String(current.rain_intensity));
+    }
 
     // check for snow
     current.snow_intensity = 0;
@@ -326,7 +326,8 @@ void checkEnvironment() {
         current.snow_intensity = get_snow();
     }
     if(PARTICLE_CLOUD){
-      Particle.publish(String(analogRead(PIN_TRCT)), String(current.snow_intensity));}
+        Particle.publish(String(analogRead(PIN_TRCT)), String(current.snow_intensity));
+    }
 
     // save results
     save_current(current);
@@ -341,10 +342,12 @@ void get_battery_level(SingleResult& result) {
     delayMicroseconds(4);
     uint16_t lvl = analogRead(PIN_BATTERY_MEASURE);
     if(PARTICLE_CLOUD){
-      Particle.publish("battery analog input read", String(lvl));}
+        Particle.publish("battery analog input read", String(lvl));
+    }
     lvl = (uint16_t) round_float_to_int(423*lvl/3465);
     if(PARTICLE_CLOUD){
-      Particle.publish("battery V", String(lvl));}
+        Particle.publish("battery V", String(lvl));
+    }
     digitalWrite(PIN_BATTERY_ON, LOW);
     //range is 0 to 70
     lvl = lvl > 450 ? 100 : (lvl < 380 ? 0 : lvl-380);
@@ -369,9 +372,10 @@ void get_gas(float& temperature, float& humidity, float& corrected_ppm) {
     float ppm = mq.getPPM();
     corrected_ppm = mq.getCorrectedPPM(temperature, humidity);
     if(PARTICLE_CLOUD){
-      Particle.publish("environment/rzero", String(rzero));
-      Particle.publish("environment/correctedRZero", String(correctedRZero));
-      Particle.publish("environment/resistance", String(resistance));}
+        Particle.publish("environment/rzero", String(rzero));
+        Particle.publish("environment/correctedRZero", String(correctedRZero));
+        Particle.publish("environment/resistance", String(resistance));
+    }
 }
 
 void dht_wrapper() {

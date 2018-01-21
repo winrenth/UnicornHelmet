@@ -6,7 +6,7 @@
 #include "eeprom.h"
 
 // NTP time
-#include <SparkTime.h>
+#include "timelib/ntp.h"
 
 // MQ-135 (GAS)
 #include "mq135.h"
@@ -63,11 +63,13 @@ static const uint8_t DC    = D6;
 static const uint8_t RST   = D7;
 IPAddress UDP_ADDR(139, 59, 177, 138);
 
+#ifndef Udp_obj
+#define Udp_obj
 UDP Udp;
+#endif
 BMP280 bmp;
 MQ135 mq = MQ135(PIN_MQ135);
 UDP UDPClient;
-SparkTime rtc;
 BH1750 bh;
 PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 // GxIO_SPI(SPIClass& spi, int8_t cs, int8_t dc, int8_t rst = -1, int8_t b
@@ -82,8 +84,7 @@ bool mq_online = false;
 bool bh_online = false;
 bool dht_online = false;
 bool ink_online = false;
-unsigned long currentTime;
-unsigned long lastTime = 0UL;
+time_t currentTime;
 bool bDHTstarted;
 bool con = false;
 
@@ -101,10 +102,7 @@ void setup(){
     Serial.begin(115200);
     Wire.begin();
     display.init();
-    rtc.begin(&UDPClient, "north-america.pool.ntp.org");
-    rtc.setTimeZone(1); // gmt offset
-
-
+    setSyncProvider(getNtpTime);
     if (bmp.initialize()) {
       if(PARTICLE_CLOUD){
           Particle.publish("DEBUG", "BMP280 sensor found...");}
@@ -146,6 +144,8 @@ void loop(){
         connectWiFi();
         con = true;
     }
+    setSyncProvider(getNtpTime);
+    currentTime = now();
     //int ad_value;
     //ad_value = analogRead(A0);
     //Particle.publish("ad_value", String(ad_value));
@@ -159,6 +159,7 @@ void loop(){
     //display.println(results);
     //display.update();
     //Particle.publish("results", results);
+    Serial.println(get_time_string(currentTime));
     checkEnvironment();
     sendResult();
     //
@@ -257,9 +258,6 @@ void sendResult() {
 void checkEnvironment() {
     digitalWrite(PIN_SENSOR_ON, HIGH);
     start_dht_acquire();
-    //update time
-    //currentTime = rtc.now();
-    //Particle.publish("Measurment time", rtc.ISODateString(currentTime));
     previous = get_nth_result(0);
     if (!previous.timestamp){
         // make some inital assumptions
@@ -276,8 +274,7 @@ void checkEnvironment() {
     prev2 += " A" + String(previous2.altitude) + " C:" + String(previous2.CO2)  + " L:" + String(previous2.light)  + " R:" + String(previous2.timestamp);
     if(PARTICLE_CLOUD){
       Particle.publish("previous2", prev2);}
-    currentTime = rtc.now();
-    current.timestamp = rtc.nowEpoch();
+    current.timestamp = currentTime;
 
     // check battery level
     get_battery_level(current);
@@ -298,8 +295,8 @@ void checkEnvironment() {
     if (bmp_online) {
         get_humidity(current, previous, dht_done);
         if(PARTICLE_CLOUD){
-          Particle.publish("dht22/temperature", String(current.humidity));
-          Particle.publish("dht22/humidity", String(current.temperature));}
+          Particle.publish("dht22/temperature", String(current.temperature));
+          Particle.publish("dht22/humidity", String(current.humidity));}
         delay(1000);
     }
 
@@ -329,7 +326,7 @@ void checkEnvironment() {
         current.snow_intensity = get_snow();
     }
     if(PARTICLE_CLOUD){
-      Particle.publish("environment/snow", String(current.snow_intensity));}
+      Particle.publish(String(analogRead(PIN_TRCT)), String(current.snow_intensity));}
 
     // save results
     save_current(current);
@@ -448,7 +445,6 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
               Particle.publish("Unknown error");}
             break;
         }
-
         result.humidity = DHT.getHumidity();
         result.temperature = (result.temperature + DHT.getCelsius()) / 2;
         // dew = DHT.getDewPoint();
@@ -465,7 +461,7 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
 int get_snow(int n) {
     int successes = 0;
     for (int i=0; i<n; i++) {
-        if (analogRead(PIN_TRCT) < 3990) {
+        if (analogRead(PIN_TRCT) < 3990 && analogRead(PIN_TRCT) > 250) {
             successes++;
         }
         delay(IR_PROBE_DELAY);
@@ -537,7 +533,8 @@ void draw_pressure_chart(SingleResult& result) {
         min_p += min_p * -1;
     }
     if(PARTICLE_CLOUD){
-      Particle.publish("minmax", String(min_p) + " " + String(max_p));}
+        Particle.publish("minmax", String(min_p) + " " + String(max_p));
+    }
     delta = max_p - min_p;
     if (delta <= 1) {
         offset = min_p + 1;
@@ -569,19 +566,25 @@ void updateInk(SingleResult& result){
     //battery
     display.drawRect(3, 3, 33, 14, GxEPD_BLACK);
     display.fillRect(36, 7, 3, 6, GxEPD_BLACK);
-    for (int i=0; i<4; i++){
+    int bars = 0;
+    if (current.battery > 10 && current.battery < 37) bars = 1;
+    if (current.battery >= 37 && current.battery < 64) bars = 2;
+    if (current.battery >= 44 && current.battery < 90) bars = 3;
+    if (current.battery >= 90) bars = 4;
+
+    for (int i=0; i<bars; i++){
         display.fillRect(4+i*8, 5, 7, 10, GxEPD_RED);
     }
     display.setTextColor(GxEPD_BLACK);
     display.setFont(f12);
     display.setCursor(44, 14);
-    display.print("100%");
+    display.print(String(current.battery) + "%");
 
     display.fillRect(100, 0, 100, 20, GxEPD_BLACK);
     display.setTextColor(GxEPD_WHITE);
     display.setFont(f8);
     display.setCursor(110, 14);
-    display.println(get_time_string(rtc, currentTime));
+    display.println(get_time_string(currentTime));
 
     // 2nd row (TMP | HUM | Pressure)
     display.fillRect(0, 19, 200, 24, GxEPD_RED);

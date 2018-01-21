@@ -13,15 +13,23 @@ int get_num_of_results(SingleResult* results, unsigned long now, unsigned long m
     return TOTAL_RESULTS;
 }
 
-String get_time_string(SparkTime& rtc, unsigned long tnow){
-    String time_str = rtc.yearShortString(tnow);
+String get_time_string(time_t& tnow){
+    String time_str = String(year(tnow) % 100);
     time_str += "-";
-    time_str += rtc.monthString(tnow);
+    time_str += two_digit(month(tnow));
     time_str += "-";
-    time_str += rtc.dayString(tnow);
+    time_str += two_digit(day(tnow));
     time_str += " ";
-    time_str += rtc.hourString(tnow);
+    time_str += two_digit(hour(tnow));
     time_str += ":";
-    time_str += rtc.minuteString(tnow);
+    time_str += two_digit(minute(tnow));
     return time_str;
+}
+
+String two_digit(int i){
+
+    if (i < 10){
+        return "0" + String(i);
+    }
+    return String(i);
 }

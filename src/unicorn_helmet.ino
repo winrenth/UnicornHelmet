@@ -7,6 +7,7 @@
 
 // NTP time
 #include "timelib/ntp.h"
+#include "timelib/sunMoon.h"
 
 // MQ-135 (GAS)
 #include "mq135.h"
@@ -41,7 +42,9 @@
 #define HAS_RED_COLOR
 #define IR_PROBE_DELAY 5
 #define UDP_PORT 8888
-
+#define OUR_latitude    50.6462911  // SOKOLEC cordinates
+#define OUR_longtitude  16.4788418
+#define OUR_timezone    60          // UTC offsetin minutes
 #define PARTICLE_CLOUD true
 
 //declarations
@@ -76,6 +79,7 @@ PietteTech_DHT DHT(DHTPIN, DHTTYPE, dht_wrapper);
 GxIO_Class io(SPI1, D5, DC);
 GxEPD_Class display(io, RST, D3);
 Ultrasonic ultrasonic(A1, 12);
+sunMoon sm;
 
 SingleResult current, previous;
 int led2 = D7;
@@ -266,7 +270,7 @@ void checkEnvironment() {
     //if(PARTICLE_CLOUD){
     //    Particle.publish("previous2", prev2);
     //}
-    
+
     // set current time
     current.timestamp = currentTime;
 
@@ -492,8 +496,19 @@ const unsigned char *get_cloud_icon(int rain_intensity, int snow_intensity){
     }
 }
 
-const unsigned char *get_sun_icon(uint16_t light, int timesptamp){
-
+const unsigned char *get_sun_icon(uint16_t light){
+    time_t sRise = sm.sunRise();
+    time_t sSet  = sm.sunSet();
+    if (currentTime > sSet || currentTime < sRise) {
+        return icons_moon;
+    }
+    if (light < 5500 && light > 4500) {
+        return icons_cloud_sun;
+    }
+    if (light > 5500) {
+        return icons_sun;
+    }
+    return icons_cloud;
 }
 
 
@@ -560,7 +575,7 @@ void updateInk(SingleResult& result){
     const GFXfont* f16 = &Nimbus_Sans_L_Bold_Condensed_16;
 
     const unsigned char *cloud_icon = get_cloud_icon(result.rain_intensity, result.snow_intensity);
-    //const unsigned char *sun_icon = get_sun_icon(light);
+    const unsigned char *sun_icon = get_sun_icon(current.light);
 
     display.setRotation(3);
     display.fillRect(0, 0, 200, 200, GxEPD_WHITE);
@@ -619,7 +634,7 @@ void updateInk(SingleResult& result){
 
     display.drawRect(0, 80, 100, 59, GxEPD_BLACK);
     display.drawRect(99, 80, 100, 59, GxEPD_BLACK);
-    display.drawBitmap(icons_sun, 24, 85, 50, 50, GxEPD_WHITE);
+    display.drawBitmap(sun_icon, 24, 85, 50, 50, GxEPD_WHITE);
     //display.drawBitmap(cloud_icon, 124, 85, 50, 50, GxEPD_WHITE);
     draw_pressure_chart(result);
 

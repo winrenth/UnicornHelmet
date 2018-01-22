@@ -39,3 +39,4 @@
 #include <imglib/icons_snow_1.h>
 #include <imglib/icons_snow_2.h>
 #include <imglib/icons_snow_3.h>
+#include <imglib/icons_moon.h>

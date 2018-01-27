@@ -133,7 +133,7 @@ void setup(){
 }
 
 void loop(){
-    delay(10000);
+    delay(30000);
     if (!con) {
         connectWiFi();
         con = true;
@@ -153,7 +153,8 @@ void loop(){
     //display.println(results);
     //display.update();
     //Particle.publish("results", results);
-    Serial.println(get_time_string(currentTime));
+
+    //Serial.println(get_time_string(currentTime));
     checkEnvironment();
     sendResult();
     //
@@ -333,12 +334,15 @@ void checkEnvironment() {
         Particle.publish(String(analogRead(PIN_TRCT)), String(current.snow_intensity));
     }
 
+    // shut off sensors
+    digitalWrite(PIN_SENSOR_ON, LOW);
+
     // save results
     save_current(current);
 
     // show results
     updateInk(current);
-    digitalWrite(PIN_SENSOR_ON, LOW);
+
 }
 
 void get_battery_level(SingleResult& result) {
@@ -348,13 +352,13 @@ void get_battery_level(SingleResult& result) {
     if(PARTICLE_CLOUD){
         Particle.publish("battery analog input read", String(lvl));
     }
-    lvl = (uint16_t) round_float_to_int(423*lvl/3465);
+    lvl = (uint16_t) round_float_to_int(lvl*1035/4096);
     if(PARTICLE_CLOUD){
         Particle.publish("battery V", String(lvl));
     }
     digitalWrite(PIN_BATTERY_ON, LOW);
     //range is 0 to 70
-    lvl = lvl > 450 ? 100 : (lvl < 380 ? 0 : lvl-380);
+    lvl = lvl > 750 ? 100 : (lvl <= 600 ? 0 : round_float_to_int((lvl-600)*100/150));
     result.battery = lvl;
 
 }
@@ -634,7 +638,10 @@ void updateInk(SingleResult& result){
 
     display.drawRect(0, 80, 100, 59, GxEPD_BLACK);
     display.drawRect(99, 80, 100, 59, GxEPD_BLACK);
-    display.drawBitmap(sun_icon, 24, 85, 50, 50, GxEPD_WHITE);
+    if (result.rain_intensity || result.snow_intensity)
+        display.drawBitmap(cloud_icon, 24, 85, 50, 50, GxEPD_WHITE);
+    else
+        display.drawBitmap(sun_icon, 24, 85, 50, 50, GxEPD_WHITE);
     //display.drawBitmap(cloud_icon, 124, 85, 50, 50, GxEPD_WHITE);
     draw_pressure_chart(result);
 

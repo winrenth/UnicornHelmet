@@ -17,7 +17,7 @@ unsigned int Ultrasonic::get_speed_to_cm_factor(float temp) {
 }
 
 unsigned int Ultrasonic::get_timeout(float temp) {
-  // sound travel time both ways roundtrip in given temp 
+  // sound travel time both ways roundtrip in given temp
   return (get_speed_to_cm_factor(temp) * 2) * maxdist;
 }
 
@@ -50,7 +50,7 @@ unsigned int Ultrasonic::timing(float temp) {
 unsigned int Ultrasonic::distance_read(float temp) {
   float cm_factor = get_speed_to_cm_factor(temp);
   float round_trip = timing(temp);
-  return round_trip / cm_factor / 2;  
+  return round_trip / cm_factor / 2;
 }
 
 
@@ -67,5 +67,5 @@ unsigned int Ultrasonic::get_n_readings_pct(float temp, int n) {
     delay(PORBEDELAY);
   }
   //return results;
-  return  (successful > 0) ? (successful / n * 100) : successful;  
+  return  (successful > 0) ? (successful / n * 100) : successful;
 }

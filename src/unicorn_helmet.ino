@@ -412,49 +412,32 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
         int status = DHT.getStatus();
         switch (status) {
         case DHTLIB_OK:
-          if(PARTICLE_CLOUD){
-              Particle.publish("OK");}
+            if(PARTICLE_CLOUD) Particle.publish("OK");
             performed = true;
             break;
         case DHTLIB_ERROR_CHECKSUM:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tChecksum error");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tChecksum error");
             break;
         case DHTLIB_ERROR_ISR_TIMEOUT:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tISR time out error");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tISR time out error");
             break;
         case DHTLIB_ERROR_RESPONSE_TIMEOUT:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tResponse time out error");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tResponse time out error");
             break;
         case DHTLIB_ERROR_DATA_TIMEOUT:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tData time out error");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tData time out error");
             break;
         case DHTLIB_ERROR_ACQUIRING:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tAcquiring");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tAcquiring");
             break;
         case DHTLIB_ERROR_DELTA:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tDelta time to small");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tDelta time to small");
             break;
         case DHTLIB_ERROR_NOTSTARTED:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Error\n\r\tNot started");}
+            if(PARTICLE_CLOUD) Particle.publish("Error\n\r\tNot started");
             break;
         default:
-            delay(1000);
-            if(PARTICLE_CLOUD){
-              Particle.publish("Unknown error");}
+            if(PARTICLE_CLOUD) Particle.publish("Unknown error");
             break;
         }
         result.humidity = DHT.getHumidity();
@@ -463,8 +446,7 @@ void get_humidity(SingleResult& result, SingleResult& prev_result, bool& perform
         bDHTstarted = false;
     } else {
         // get previous
-        if(PARTICLE_CLOUD){
-          Particle.publish("Error: DHT still in progress!");}
+        if(PARTICLE_CLOUD) Particle.publish("Error: DHT still in progress!");
         result.humidity = prev_result.humidity;
         result.temperature = (result.temperature + prev_result.temperature) / 2;
     }
@@ -533,8 +515,6 @@ void draw_pressure_chart(SingleResult& result) {
     SingleResult *results = get_all_results();
     int num_results = get_num_of_results(results, result.timestamp);
     num_results = num_results > 22 ? 22 : num_results;
-    //Particle.publish("num_results", String(num_results));
-    //delay(1000);
 
     float p_results[num_results], delta, offset, min_p=0, max_p=0;
     int j = 0;

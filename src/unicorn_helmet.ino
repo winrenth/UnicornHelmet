@@ -82,7 +82,6 @@ Ultrasonic ultrasonic(A1, 12);
 sunMoon sm;
 
 SingleResult current, previous;
-int led2 = D7;
 bool bmp_online = false;
 bool mq_online = false;
 bool bh_online = false;
@@ -90,7 +89,8 @@ bool dht_online = false;
 bool ink_online = false;
 time_t currentTime;
 bool bDHTstarted;
-bool con = false;
+uint32_t start;
+bool first_run = true;
 
 
 //Timer timer(30000, checkEnvironment);
@@ -133,11 +133,18 @@ void setup(){
 }
 
 void loop(){
-    delay(30000);
-    if (!con) {
-        connectWiFi();
-        con = true;
+    //if (!WiFi.ready()) {
+    connectWiFi();
+    //}
+
+    // on first run allow 30s to reprogram the device via Particle cloud
+    if (first_run) {
+        Particle.connect();
+        start = millis();
+        while (millis() - start < 15000UL) Particle.process();
+        first_run = false;
     }
+
     setSyncProvider(getNtpTime);
     currentTime = now();
     //int ad_value;
@@ -157,8 +164,10 @@ void loop(){
     //Serial.println(get_time_string(currentTime));
     checkEnvironment();
     sendResult();
-    //
     //WiFi.off();
+    pinMode(D7, OUTPUT);
+    digitalWrite(D7, LOW);    
+    System.sleep(D17,RISING,60);
 }
 
 void connectWiFi() {
@@ -174,7 +183,7 @@ void connectWiFi() {
     if (found > 0) {
         for (int i = 0; i < found; i++) {
             Serial.println(aps[i].ssid);
-            for (int j = 0; j < 3; j++) {
+            for (int j = 0; j < 4; j++) {
                 if(String(aps[i].ssid) == known[j][0]) {
                       Serial.println("MATCH!");
                       WiFi.setCredentials(known[j][0].c_str(),known[j][1].c_str());

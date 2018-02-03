@@ -14,8 +14,8 @@ typedef struct {
   float CO2;
   float pressure;
   uint16_t altitude;
-  short snow_intensity;
-  short rain_intensity;
+  int16_t snow_intensity;
+  int16_t rain_intensity;
   uint8_t battery;
   unsigned long timestamp=0;
 } SingleResult;
@@ -29,9 +29,9 @@ typedef struct {
   float CO2;
   int16_t light;
   uint8_t battery;
-  short snow_intensity;
-  short rain_intensity;
-  short result=0;
+  int16_t snow_intensity;
+  int16_t rain_intensity;
+  int16_t result=0;
 } UnicornProto;
 
 int get_nth_result_address(uint16_t n);
